@@ -83,7 +83,7 @@ my_cool_website :: (x: int, y: string) -> Html {
 }
 
 generate_html :: () {
-    output := my_cool_webpage(30, "Hello!");
+    output := my_cool_website(30, "Hello!");
     print("%\n", output);
 }
 
