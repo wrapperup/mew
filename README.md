@@ -40,7 +40,7 @@ html(.{
 ```
 Generates `<h1 class="header">Heading #1</h1>`
 
-Expressions can be interpolated into mew using `~` or `#code` (they work the same). The return value will be printed with `tprint()` internally. Expressions are also automatically escaped, and this is enforced at compile-time based on the signature of the function. If your expression returns the `Escaped` type from mew, it will not be escaped.
+Expressions can be interpolated into mew using `~` or `#code` (they work the same). The return value will be printed with `tprint()` internally. Expressions are also automatically escaped, and this is enforced at compile-time based on the return type of the expression. If your expression returns the `Escaped` type from mew, it will not be escaped.
 ```jai
 a_function :: () -> Escaped {
     return "2 + 4 = ".(Escaped); // This string is safe, no need to escape it.
