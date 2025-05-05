@@ -64,7 +64,7 @@ static :: (link: string) {
     return tprint("somefancyhash/%", link);
 }
 
-my_cool_component :: (x: int, y: string) -> Html {
+my_cool_website :: (x: int, y: string) -> Html {
     return html(.{
         DOCTYPE,
         html,
