@@ -4,7 +4,20 @@ static :: link => tprint("somefancyhash/%", link);
 
 my_cool_webpage :: (x: int, y: string) -> Html {
     return html(.{
-        div.test.more.than.four.four.four(four="five") .{},
+        DOCTYPE,
+        html,
+        head.{
+            script(type="text/javascript", src=~static("cool.js")).{},
+        },
+        body.{
+            ~ifx x > 20 then html(.{
+                h1.{ "X is greater than 20!" },
+            }),
+
+            h1.{ ~x },
+            p.{ #code y },
+        },
+        div.test.more_awesome.than.four.four.four."special__class"(four="five", data_something="10").{},
     });
 }
 
@@ -17,7 +30,7 @@ generate_html :: () {
 COMPILE_TIME :: true;
 
 #if COMPILE_TIME {
-    #run {
+    #run,stallable {
         Compiler.set_build_options_dc(.{do_output=false});
         generate_html();
     }

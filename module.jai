@@ -2,11 +2,12 @@ Html :: #type,isa string;
 Escaped :: #type,distinct string;
 
 Html_Options :: struct {
-    // Escapes printed expressions.
-    escape := true;
-}
+    // Automatically escapes any expression that isn't the `Escaped` type.
+    automatically_escape := true;
 
-DEBUG_HTML_PARSING :: false;
+    // Replaces underscores in attributes, tags, and class names with a hyphen.
+    replace_underscores_with_hyphens := true;
+}
 
 escape_html_string :: (str: string) -> Escaped {
     str1 := replace(str, "&",  "&amp;");
@@ -28,18 +29,26 @@ html :: (code: Code, $options := Html_Options.{}) -> Html #expand {
         builder: String_Builder;
 
         root := Compiler.compiler_get_nodes(code);
+        lit := root.(*Compiler.Code_Literal);
+
+        mew_check(root.kind == .LITERAL && lit.value_type == .STRUCT, root, "The html macro must start with a struct literal. For example, `html(.{ ... }).");
+
+        struct_lit := lit.values.struct_literal_info;
 
         strings: [..] string;
         codes: [..] Code;
 
-        recurse_build_html_segments_from_code(*builder, root, *strings, *codes);
+        for struct_lit.arguments {
+            recurse_build_html_segments_from_code(*builder, it, *strings, *codes, options.replace_underscores_with_hyphens);
+        }
+
         array_add(*strings, builder_to_string(*builder));
 
         return strings, codes;
     };
 
     #if STRINGS.count > 1 {
-        assert((STRINGS.count - 1) == CODE_EXPRS.count, "The number of code expressions is larger than strings...?");
+        #assert ((STRINGS.count - 1) == CODE_EXPRS.count) "The number of code expressions is larger than strings...?";
         builder: String_Builder;
 
         // Unfortunately, we have to manually unroll this loop to generate all the code...
@@ -52,7 +61,7 @@ html :: (code: Code, $options := Html_Options.{}) -> Html #expand {
 
                     pre_escaped := false;
 
-                    if options.escape {
+                    if options.automatically_escape {
                         print_to_builder(*gen_builder, "#if type_of(value%) == Escaped || type_of(value%) == Html\n {", it_index, it_index);
                         print_to_builder(*gen_builder, "  append(*builder, value%.(string));\n", it_index);
                         print_to_builder(*gen_builder, "} else {\n");
@@ -79,16 +88,13 @@ recurse_build_html_segments_from_code :: (
     root: *Compiler.Code_Node,
     strings: *[..] string,
     codes: *[..] Code,
+    replace_underscores_with_hyphens: bool,
     closing := false,
     building_class := false
 ) {
     using Compiler;
 
     closing_string := ifx closing then "/" else "";
-
-    #if DEBUG_HTML_PARSING {
-        log("Kind: %", root.kind);
-    }
 
     if root.kind == {
     case .LITERAL;
@@ -98,6 +104,15 @@ recurse_build_html_segments_from_code :: (
             case .STRING;
                 print_to_builder(builder, lit.values._string);
                 return;
+            case .NUMBER;
+                if lit.value_flags & .FLOAT {
+                    print_to_builder(builder, "%", lit.values._float64);
+                } else if lit.value_flags & .MINUS_SIGN {
+                    print_to_builder(builder, "%", lit.values._s64);
+                } else {
+                    print_to_builder(builder, "%", lit.values._u64);
+                }
+                return;
             case .STRUCT;
                 struct_lit := lit.values.struct_literal_info;
 
@@ -105,7 +120,7 @@ recurse_build_html_segments_from_code :: (
 
                 if expr {
                     print_to_builder(builder, "<");
-                    recurse_build_html_segments_from_code(builder, expr, strings, codes);
+                    recurse_build_html_segments_from_code(builder, expr, strings, codes, replace_underscores_with_hyphens);
                     print_to_builder(builder, ">");
                 }
                 else {
@@ -114,12 +129,12 @@ recurse_build_html_segments_from_code :: (
                 }
 
                 for struct_lit.arguments {
-                    recurse_build_html_segments_from_code(builder, it, strings, codes);
+                    recurse_build_html_segments_from_code(builder, it, strings, codes, replace_underscores_with_hyphens);
                 }
 
                 if expr {
                     print_to_builder(builder, "<");
-                    recurse_build_html_segments_from_code(builder, expr, strings, codes, closing = true);
+                    recurse_build_html_segments_from_code(builder, expr, strings, codes, replace_underscores_with_hyphens, closing = true);
                     print_to_builder(builder, ">");
                 }
                 else {
@@ -138,24 +153,29 @@ recurse_build_html_segments_from_code :: (
             name = "!DOCTYPE html";
         }
 
-        print_to_builder(builder, "%0%", closing_string, name);
+        if !replace_underscores_with_hyphens {
+            print_to_builder(builder, "%0%", closing_string, name);
+        } else {
+            print_to_builder(builder, "%", closing_string);
+            print_name_replace_underscore(builder, name);
+        }
 
     case .PROCEDURE_CALL;
         call := root.(*Code_Procedure_Call);
         expr := call.procedure_expression;
         if expr {
-            recurse_build_html_segments_from_code(builder, expr, strings, codes, closing);
+            recurse_build_html_segments_from_code(builder, expr, strings, codes, replace_underscores_with_hyphens, closing);
         }
 
         if !closing {
             for call.arguments_unsorted {
-                if it.name {
-                    print_to_builder(builder, " %=\"", it.name.name);
-                    recurse_build_html_segments_from_code(builder, it.expression, strings, codes);
-                    print_to_builder(builder, "\"");
-                } else {
+                mew_check(it.name != null, it.expression, "Attributes must have a name. For example, id=\"name\".");
 
-                }
+                print_to_builder(builder, " ");
+                recurse_build_html_segments_from_code(builder, it.name, strings, codes, replace_underscores_with_hyphens);
+                print_to_builder(builder, "=\"");
+                recurse_build_html_segments_from_code(builder, it.expression, strings, codes, replace_underscores_with_hyphens);
+                print_to_builder(builder, "\"");
             }
         }
 
@@ -166,9 +186,9 @@ recurse_build_html_segments_from_code :: (
         // Left must be an ident
 
         if closing {
-            recurse_build_html_segments_from_code(builder, bin_op.left, strings, codes, closing = true);
+            recurse_build_html_segments_from_code(builder, bin_op.left, strings, codes, replace_underscores_with_hyphens, closing = true);
         } else {
-            recurse_build_html_segments_from_code(builder, bin_op.left, strings, codes, building_class = true);
+            recurse_build_html_segments_from_code(builder, bin_op.left, strings, codes, replace_underscores_with_hyphens, building_class = true);
 
             // Add class to the left of the entire list of classes.
             print_to_builder(builder, " ");
@@ -178,7 +198,7 @@ recurse_build_html_segments_from_code :: (
                 print_to_builder(builder, "class=\"");
             }
 
-            recurse_build_html_segments_from_code(builder, bin_op.right, strings, codes, closing, building_class = true);
+            recurse_build_html_segments_from_code(builder, bin_op.right, strings, codes, replace_underscores_with_hyphens, closing, building_class = true);
 
             // Handles the base case (ending class quote)
             if !building_class {
@@ -200,6 +220,18 @@ recurse_build_html_segments_from_code :: (
     }
 
     return;
+}
+
+print_name_replace_underscore :: (builder: *String_Builder, str: string) {
+    segments := split(str, "_");
+
+    for segments {
+        if it_index != 0 {
+            print_to_builder(builder, "-");
+        }
+
+        print_to_builder(builder, "%", it);
+    }
 }
 
 mew_check :: (arg: bool, node: *Compiler.Code_Node, message := "", args: .. Any) {

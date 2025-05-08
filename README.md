@@ -56,15 +56,15 @@ html(.{
 Generates `<p>2 + 4 = 6</p>`
 
 A shortcut for appending a list of classes also exists using the `.` operator. Class names can also be quoted if you need to use
-non-ident characters (for example, a hyphen)
+non-ident characters. By default, underscores are replaced with hyphens. If you want to use other characters (including underscore), you can quote the class name to use any character.
 ```jai
 html(.{
-    p.large."font-heading".{
+    p.large.font_heading."special__class".{
         "Hello!"
     },
 })
 ```
-Generates `<p class="large font-heading">Hello!</p>`
+Generates `<p class="large font-heading special__class">Hello!</p>`
 
 ## Example
 
