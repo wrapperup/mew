@@ -55,6 +55,17 @@ html(.{
 ```
 Generates `<p>2 + 4 = 6</p>`
 
+A shortcut for appending a list of classes also exists using the `.` operator. Class names can also be quoted if you need to use
+non-ident characters (for example, a hyphen)
+```jai
+html(.{
+    p.large."font-heading".{
+        "Hello!"
+    },
+})
+```
+Generates `<p class="large font-heading">Hello!</p>`
+
 ## Example
 
 ```jai

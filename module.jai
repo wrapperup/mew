@@ -79,7 +79,8 @@ recurse_build_html_segments_from_code :: (
     root: *Compiler.Code_Node,
     strings: *[..] string,
     codes: *[..] Code,
-    closing := false
+    closing := false,
+    building_class := false
 ) {
     using Compiler;
 
@@ -103,7 +104,13 @@ recurse_build_html_segments_from_code :: (
                 expr := ifx struct_lit.type_expression != null then struct_lit.type_expression.type_valued_expression else null;
 
                 if expr {
+                    print_to_builder(builder, "<");
                     recurse_build_html_segments_from_code(builder, expr, strings, codes);
+                    print_to_builder(builder, ">");
+                }
+                else {
+                    // Assumed to be a div if there is no expression.
+                    print_to_builder(builder, "<div>");
                 }
 
                 for struct_lit.arguments {
@@ -111,9 +118,15 @@ recurse_build_html_segments_from_code :: (
                 }
 
                 if expr {
+                    print_to_builder(builder, "<");
                     recurse_build_html_segments_from_code(builder, expr, strings, codes, closing = true);
+                    print_to_builder(builder, ">");
                 }
-            case; assert(false, "Value type not supported: %", lit.value_type);
+                else {
+                    // Assumed to be a div if there is no expression.
+                    print_to_builder(builder, "</div>");
+                }
+            case; mew_check(false, lit, "Value type not supported: %", lit.value_type);
         }
 
     case .IDENT;
@@ -125,12 +138,14 @@ recurse_build_html_segments_from_code :: (
             name = "!DOCTYPE html";
         }
 
-        print_to_builder(builder, "<%0%>", closing_string, name);
+        print_to_builder(builder, "%0%", closing_string, name);
 
     case .PROCEDURE_CALL;
         call := root.(*Code_Procedure_Call);
-        ident := call.procedure_expression.(*Code_Ident);
-        print_to_builder(builder, "<%0%", closing_string, ident.name);
+        expr := call.procedure_expression;
+        if expr {
+            recurse_build_html_segments_from_code(builder, expr, strings, codes, closing);
+        }
 
         if !closing {
             for call.arguments_unsorted {
@@ -144,14 +159,33 @@ recurse_build_html_segments_from_code :: (
             }
         }
 
-        print_to_builder(builder, ">");
-
     case .BINARY_OPERATOR;
         bin_op := root.(*Code_Binary_Operator);
 
-        assert(bin_op.operator_type == xx Operator_Type.IS_EQUAL, "Not an equals sign.");
+        mew_check(bin_op.operator_type == #char ".", bin_op, "Unsupported binary operator. Only \".\" is supported. Try quoting your class name if you need a special character.");
+        // Left must be an ident
 
+        if closing {
+            recurse_build_html_segments_from_code(builder, bin_op.left, strings, codes, closing = true);
+        } else {
+            recurse_build_html_segments_from_code(builder, bin_op.left, strings, codes, building_class = true);
 
+            // Add class to the left of the entire list of classes.
+            print_to_builder(builder, " ");
+            
+            // Handles the case at the very end of this binary op chain (starting class attribute).
+            if building_class && bin_op.left.kind == .IDENT {
+                print_to_builder(builder, "class=\"");
+            }
+
+            recurse_build_html_segments_from_code(builder, bin_op.right, strings, codes, closing, building_class = true);
+
+            // Handles the base case (ending class quote)
+            if !building_class {
+                print_to_builder(builder, "\"");
+            }
+        }
+            
     case .DIRECTIVE_CODE;
         dir_code := root.(*Code_Directive_Code);
         array_add(strings, builder_to_string(builder));
@@ -162,10 +196,20 @@ recurse_build_html_segments_from_code :: (
         array_add(strings, builder_to_string(builder));
         array_add(codes, compiler_get_code(op.subexpression));
 
-    case; assert(false, "Unsupported. Kind is %", root.kind);
+    case; mew_check(false, root, "Unsupported. Kind is %", root.kind);
     }
 
     return;
+}
+
+mew_check :: (arg: bool, node: *Compiler.Code_Node, message := "", args: .. Any) {
+    if !arg {
+        report_error(node, message);
+    }
+}
+
+report_error :: (node: *Compiler.Code_Node, message := "", args: .. Any) {
+    Compiler.compiler_report(tprint(message, args), Compiler.make_location(node));
 }
 
 #scope_module

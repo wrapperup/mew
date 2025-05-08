@@ -2,30 +2,9 @@
 
 static :: link => tprint("somefancyhash/%", link);
 
-my_component :: (title: string) -> Html {
-    return html(.{
-        h2.{ ~title },
-        p.{ "My cool component." },
-    });
-}
-
 my_cool_webpage :: (x: int, y: string) -> Html {
     return html(.{
-        DOCTYPE,
-        html,
-        head.{
-            script(type="text/javascript", src=~static("cool.js")).{},
-        },
-        body.{
-            ~ifx x > 20 then html(.{
-                h1.{ "Something happened?" },
-            }),
-
-            h1.{ ~x },
-            p.{ ~y },
-
-            ~my_component("Poggers"),
-        },
+        div.test.more.than.four.four.four(four="five") .{},
     });
 }
 
