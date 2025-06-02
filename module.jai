@@ -65,11 +65,11 @@ html :: (code: Code, $options := Html_Options.{}) -> Html #expand {
                         print_to_builder(*gen_builder, "#if type_of(value%) == Escaped || type_of(value%) == Html\n {", it_index, it_index);
                         print_to_builder(*gen_builder, "  append(*builder, value%.(string));\n", it_index);
                         print_to_builder(*gen_builder, "} else {\n");
-                        print_to_builder(*gen_builder, "  escaped% := escape_html_string(tprint(\"%%\", value%));\n", it_index, it_index);
+                        print_to_builder(*gen_builder, "  escaped% := escape_html_string(tprint(\"\%\", value%));\n", it_index, it_index);
                         print_to_builder(*gen_builder, "  append(*builder, escaped%.(string));\n", it_index);
                         print_to_builder(*gen_builder, "}\n");
                     } else {
-                        print_to_builder(*gen_builder, "print_to_builder(*builder, \"%%\", value%);\n", it_index);
+                        print_to_builder(*gen_builder, "print_to_builder(*builder, \"\%\", value%);\n", it_index);
                     }
                 }
             }
